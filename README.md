@@ -61,6 +61,24 @@ Clockwork fits well with heroku's cedar stack.
 Consider to use [clockwork-init.sh](https://gist.github.com/1312172) to create
 a new project for heroku.
 
+Quickstart for Clusters
+-----------------------
+
+In non-heroku settings it makes sense to run Clockwork across multiple servers for
+HA purposes in the event of server failure. To support this usecase Clockwork can
+use Zookeeper to ensure that only one Clockwork is ticking across a given cluster.
+
+To set this up, add the [zk](https://github.com/zk-ruby/zk/) gem to your Gemfile, and set the
+config[:lock][:cluster] and config[:lock][:name] values, like so
+
+```ruby
+module Clockwork
+  configure do |config|
+    config[:lock] = {cluster: "localhost:2181,...", name: "clock"}
+  end
+end
+```
+
 Use with queueing
 -----------------
 
