@@ -55,6 +55,22 @@ module Clockwork
     end
 
     def run
+      if config[:lock]
+        raise "Must specify Zookeeper cluster" unless config[:lock][:cluster]
+        raise "Must specify lock name" unless config[:lock][:name]
+        require 'zk'
+        @zk = ZK.new(config[:lock][:cluster])
+        # If we lose our ZK connection abandon ship. Assume we're being monitored and will be restarted
+        @zk.on_expired_session { exit false }
+        @zk.with_lock(config[:lock][:name]) do
+          main_loop
+        end
+      else
+        main_loop
+      end
+    end
+
+    def main_loop
       log "Starting clock for #{@events.size} events: [ #{@events.map(&:to_s).join(' ')} ]"
       loop do
         tick
