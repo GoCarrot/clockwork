@@ -62,7 +62,13 @@ module Clockwork
         @zk = ZK.new(config[:lock][:cluster])
         # If we lose our ZK connection abandon ship. Assume we're being monitored and will be restarted
         @zk.on_expired_session { exit false }
+        # Create our root node for storing when jobs last ran
+        @root_node = "/_clockwork/#{config[:lock][:name]}"
+        @zk.mkdir_p(@root_node)
         @zk.with_lock(config[:lock][:name]) do
+          # We are the only runner across the entire cluster. Load in data from our
+          # previous run and go.
+          @events.each { |event| event.init_zk(@zk, @root_node) }
           main_loop
         end
       else

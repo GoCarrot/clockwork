@@ -15,6 +15,12 @@ module Clockwork
       @timezone = options.fetch(:tz, @manager.config[:tz])
     end
 
+    def init_zk(zk, root_node)
+      @zk = zk
+      @root_node = "#{root_node}/#{@job}"
+      @last = convert_timezone(Time.at(@zk.get(root_node)[0].to_i)) rescue nil
+    end
+
     def convert_timezone(t)
       @timezone ? t.in_time_zone(@timezone) : t
     end
@@ -30,6 +36,9 @@ module Clockwork
 
     def run(t)
       @manager.log "Triggering '#{self}'"
+      if @zk && @root_node
+        @zk.set(@root_node, t.to_i)
+      end
       @last = convert_timezone(t)
       if thread?
         if @manager.thread_available?
