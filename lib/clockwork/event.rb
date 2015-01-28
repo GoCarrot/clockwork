@@ -18,7 +18,10 @@ module Clockwork
     def init_zk(zk, root_node)
       @zk = zk
       @root_node = "#{root_node}/#{@job}"
-      @last = convert_timezone(Time.at(@zk.get(root_node)[0].to_i)) rescue nil
+      if !@zk.exists?(@root_node)
+        @zk.mkdir_p(@root_node)
+      end
+      @last = convert_timezone(Time.at(@zk.get(@root_node)[0].to_i)) rescue nil
     end
 
     def convert_timezone(t)
@@ -37,7 +40,7 @@ module Clockwork
     def run(t)
       @manager.log "Triggering '#{self}'"
       if @zk && @root_node
-        @zk.set(@root_node, t.to_i)
+        @zk.set(@root_node, t.to_i.to_s)
       end
       @last = convert_timezone(t)
       if thread?
