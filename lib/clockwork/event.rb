@@ -56,7 +56,7 @@ module Clockwork
     end
 
     def paused?
-      @paused
+      @paused_mutex.synchronize { @paused }
     end
 
     def run_now?(t)
