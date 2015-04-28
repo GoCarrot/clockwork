@@ -9,6 +9,8 @@ module Clockwork
       @job = job
       @at = At.parse(options[:at])
       @last = nil
+      @paused = nil
+      @paused_mutex = Mutex.new
       @block = block
       @if = options[:if]
       @thread = options.fetch(:thread, @manager.config[:thread])
@@ -18,9 +20,30 @@ module Clockwork
     def init_zk(zk, root_node)
       @zk = zk
       @root_node = "#{root_node}/#{@job}"
+      @paused_node = "#{@root_node}/paused"
+
       if !@zk.exists?(@root_node)
         @zk.mkdir_p(@root_node)
       end
+
+      # ZK watches for pause
+      @zk.register(@paused_node) do |event|
+        if event.node_created? || event.node_deleted?
+          self.paused = @zk.exists?(@paused_node, :watch => true)
+          if paused?
+            @manager.log "Pausing '#{self}'"
+          else
+            @manager.log "Unpausing '#{self}'"
+          end
+        end
+      end
+
+      # arm and get initial state
+      self.paused = @zk.exists?(@paused_node, :watch => true)
+      if paused?
+        @manager.log "Initial state of '#{self}' is paused."
+      end
+
       @last = convert_timezone(Time.at(@zk.get(@root_node)[0].to_i)) rescue nil
     end
 
@@ -28,9 +51,17 @@ module Clockwork
       @timezone ? t.in_time_zone(@timezone) : t
     end
 
+    def paused=(v)
+      @paused_mutex.synchronize { @paused = !!v }
+    end
+
+    def paused?
+      @paused
+    end
+
     def run_now?(t)
       t = convert_timezone(t)
-      elapsed_ready(t) and (@at.nil? or @at.ready?(t)) and (@if.nil? or @if.call(t))
+      elapsed_ready(t) and !paused? and (@at.nil? or @at.ready?(t)) and (@if.nil? or @if.call(t))
     end
 
     def thread?
